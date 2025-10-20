@@ -1,4 +1,4 @@
-# Claude Code Switcher (CCM)
+# Claude Code Model Switcher (CCM)
 
 A shell application for managing Claude Code model configurations. Switch between AI models by updating the settings.json file.
 
