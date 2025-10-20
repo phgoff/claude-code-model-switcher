@@ -1,0 +1,424 @@
+#!/bin/bash
+
+# Claude Code Switcher (CCM) - Model Configuration Manager
+# Version: 1.1.0
+
+# Configuration
+CLAUDE_SETTINGS_DIR="$HOME/.claude"
+SETTINGS_FILE="$CLAUDE_SETTINGS_DIR/settings.json"
+CONFIG_DIR="$HOME/.ccm"
+CONFIG_FILE="$CONFIG_DIR/configs.json"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Model configurations (read from configs.json)
+get_model_name() {
+    local model=$1
+    if [[ "$model" == "original" ]]; then
+        echo "original"
+        return
+    fi
+
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local name=$(sed -n '/    "'"$model"'":/,/    }/p' "$CONFIG_FILE" | grep '"name":' | cut -d'"' -f4 2>/dev/null)
+        if [[ -n "$name" ]]; then
+            echo "$name"
+            return
+        fi
+    fi
+
+    echo "unknown"
+}
+
+get_api_url() {
+    local model=$1
+    if [[ "$model" == "original" ]]; then
+        echo ""
+        return
+    fi
+
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local url=$(sed -n '/    "'"$model"'":/,/    }/p' "$CONFIG_FILE" | grep '"base_url":' | cut -d'"' -f4 2>/dev/null)
+        if [[ -n "$url" ]]; then
+            echo "$url"
+            return
+        fi
+    fi
+
+    echo ""
+}
+
+get_auth_token() {
+    local model=$1
+    if [[ "$model" == "original" ]]; then
+        echo ""
+        return
+    fi
+
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local token=$(sed -n '/    "'"$model"'":/,/    }/p' "$CONFIG_FILE" | grep '"auth_token":' | cut -d'"' -f4 2>/dev/null)
+        if [[ -n "$token" ]]; then
+            echo "$token"
+            return
+        fi
+    fi
+
+    echo ""
+}
+
+get_small_fast_model() {
+    local model=$1
+    if [[ "$model" == "original" ]]; then
+        echo ""
+        return
+    fi
+
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local small_model=$(sed -n '/    "'"$model"'":/,/    }/p' "$CONFIG_FILE" | grep '"small_fast_model":' | cut -d'"' -f4 2>/dev/null)
+        if [[ -n "$small_model" ]]; then
+            echo "$small_model"
+            return
+        fi
+    fi
+
+    # Fallback to model name
+    get_model_name "$model"
+}
+
+get_available_models() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        # Extract model keys from configs.json
+        local models=$(grep '^    "[^"]*":' "$CONFIG_FILE" | grep -v '"available_models"' | cut -d'"' -f2 | tr '\n' ' ')
+        if [[ -n "$models" ]]; then
+            echo "$models original"
+            return
+        fi
+    fi
+
+    echo "original"
+}
+
+# Initialize configuration directory
+init_config() {
+    if [[ ! -d "$CONFIG_DIR" ]]; then
+        mkdir -p "$CONFIG_DIR"
+    fi
+
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        print_status $YELLOW "No configuration file found. Creating default configs.json..."
+        cat > "$CONFIG_FILE" << 'EOF'
+{
+  "current_model": "original",
+  "available_models": {
+    "example": {
+      "name": "Example-Model",
+      "base_url": "https://api.example.com",
+      "auth_token": "your-token-here",
+      "small_fast_model": "Example-Model"
+    }
+  }
+}
+EOF
+        print_status $GREEN "✓ Created default configs.json at $CONFIG_FILE"
+        print_status $YELLOW "Please edit this file to add your actual model configurations."
+    fi
+}
+
+# Print colored output
+print_status() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
+}
+
+# Show help
+show_help() {
+    cat << 'EOF'
+Claude Code Switcher (CCM) - Model Configuration Manager
+
+USAGE:
+    ccm <command> [options]
+
+COMMANDS:
+    switch <model>     Switch to specified model
+    status            Show current model configuration
+    list              List all available models
+    reload            Reload current model from configs.json
+    reset            Reset to original Claude Code (delete settings.json)
+    help              Show this help message
+
+EXAMPLES:
+    ccm switch <model>          # Switch to specified model
+    ccm status                  # Show current configuration
+    ccm list                    # List available models
+    ccm reset                   # Reset to original Claude Code
+
+CONFIGURATION SYSTEM:
+    configs.json     - Model configuration templates (edit this to update models)
+    settings.json    - Active configuration used by Claude Code
+    reload           - Reapply current model from configs.json after changes
+
+EOF
+}
+
+# Get current model
+get_current_model() {
+    if [[ ! -f "$SETTINGS_FILE" ]]; then
+        echo "original"
+    else
+        # Extract model name and try to find matching model key
+        local model_name=$(grep '"ANTHROPIC_MODEL"' "$SETTINGS_FILE" | cut -d'"' -f4 2>/dev/null || echo "unknown")
+
+        # Look through configs.json to find the model key that matches this name
+        if [[ -f "$CONFIG_FILE" ]]; then
+            for model_key in $(get_available_models); do
+                if [[ "$model_key" != "original" ]]; then
+                    local config_name=$(get_model_name "$model_key")
+                    if [[ "$config_name" == "$model_name" ]]; then
+                        echo "$model_key"
+                        return
+                    fi
+                fi
+            done
+        fi
+
+        echo "custom"
+    fi
+}
+
+# Show current status
+show_status() {
+    local current_model=$(get_current_model)
+
+    print_status $BLUE "=== Claude Code Switcher Status ==="
+    echo
+
+    if [[ "$current_model" == "original" ]]; then
+        print_status $GREEN "Current Model: Original Claude Code"
+        print_status $YELLOW "Status: Using default Claude Code configuration"
+    else
+        print_status $GREEN "Current Model: $current_model"
+
+        if [[ -f "$SETTINGS_FILE" ]]; then
+            # Extract values using grep and cut
+            local base_url=$(grep '"ANTHROPIC_BASE_URL"' "$SETTINGS_FILE" | cut -d'"' -f4 2>/dev/null || echo "N/A")
+            local model_name=$(grep '"ANTHROPIC_MODEL"' "$SETTINGS_FILE" | cut -d'"' -f4 2>/dev/null || echo "N/A")
+            local timeout=$(grep '"API_TIMEOUT_MS"' "$SETTINGS_FILE" | cut -d'"' -f4 2>/dev/null || echo "N/A")
+
+            echo -e "${CYAN}Configuration Details:${NC}"
+            echo "  Model: $model_name"
+            echo "  Base URL: $base_url"
+            echo "  Timeout: ${timeout}ms"
+        fi
+    fi
+
+    echo
+    print_status $BLUE "Settings File: $SETTINGS_FILE"
+    print_status $BLUE "Config Dir: $CONFIG_DIR"
+}
+
+# List all available models
+list_models() {
+    print_status $BLUE "=== Available Models ==="
+    echo
+
+    init_config
+    local current_model=$(get_current_model)
+
+    for model in $(get_available_models); do
+        local model_name=$(get_model_name "$model")
+        if [[ "$model" == "$current_model" ]]; then
+            print_status $GREEN "  ✓ $model ($model_name) - ${YELLOW}[CURRENT]${NC}"
+        else
+            print_status $CYAN "  • $model ($model_name)"
+        fi
+    done
+
+    echo
+    print_status $YELLOW "Use 'ccm switch <model>' to change models"
+}
+
+# Switch to a model
+switch_model() {
+    local model=$1
+
+    if [[ -z "$model" ]]; then
+        print_status $RED "Error: No model specified"
+        print_status $YELLOW "Use 'ccm list' to see available models"
+        return 1
+    fi
+
+    # Check if model is valid
+    local valid=false
+    for available_model in $(get_available_models); do
+        if [[ "$model" == "$available_model" ]]; then
+            valid=true
+            break
+        fi
+    done
+
+    if [[ "$valid" == false ]]; then
+        print_status $RED "Error: Unknown model '$model'"
+        print_status $YELLOW "Use 'ccm list' to see available models"
+        return 1
+    fi
+
+    case "$model" in
+        "original")
+            reset_to_original
+            ;;
+        *)
+            apply_model_config "$model"
+            ;;
+    esac
+}
+
+# Apply model configuration
+apply_model_config() {
+    local model=$1
+    local model_name=$(get_model_name "$model")
+    local api_url=$(get_api_url "$model")
+    local auth_token=$(get_auth_token "$model")
+    local small_fast_model=$(get_small_fast_model "$model")
+
+    # Validate required fields
+    if [[ "$model_name" == "unknown" || -z "$api_url" || -z "$auth_token" ]]; then
+        print_status $RED "Error: Incomplete configuration for model '$model'"
+        print_status $YELLOW "Please check your configs.json file"
+        return 1
+    fi
+
+    print_status $BLUE "Switching to $model model..."
+
+    # Ensure .claude directory exists
+    mkdir -p "$CLAUDE_SETTINGS_DIR"
+
+    # Create settings.json with model configuration
+    cat > "$SETTINGS_FILE" << EOF
+{
+    "env": {
+        "ANTHROPIC_BASE_URL": "$api_url",
+        "ANTHROPIC_AUTH_TOKEN": "$auth_token",
+        "ANTHROPIC_MODEL": "$model_name",
+        "ANTHROPIC_SMALL_FAST_MODEL": "$small_fast_model",
+        "API_TIMEOUT_MS": "3000000"
+    }
+}
+EOF
+
+    print_status $GREEN "✓ Successfully switched to $model model"
+    print_status $CYAN "Configuration written to: $SETTINGS_FILE"
+
+    # Show new status
+    echo
+    show_status
+}
+
+# Reset to original Claude Code
+reset_to_original() {
+    print_status $BLUE "Resetting to original Claude Code..."
+
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        # Create backup before removing
+        local backup_file="$CONFIG_DIR/settings_backup_$(date +%Y%m%d_%H%M%S).json"
+        cp "$SETTINGS_FILE" "$backup_file"
+        print_status $YELLOW "Backup created: $backup_file"
+
+        rm "$SETTINGS_FILE"
+        print_status $GREEN "✓ Settings file removed. Using original Claude Code."
+    else
+        print_status $YELLOW "No settings file found. Already using original Claude Code."
+    fi
+}
+
+# Reload current model from configs.json
+reload_current_model() {
+    local current_model=$(get_current_model)
+
+    if [[ "$current_model" == "original" ]]; then
+        print_status $YELLOW "No active model to reload. Use 'ccm switch <model>' first."
+        return 1
+    fi
+
+    print_status $BLUE "Reloading $current_model model from configs.json..."
+
+    # Apply the model configuration again (this will read from configs.json)
+    apply_model_config "$current_model"
+
+    print_status $GREEN "✓ Model $current_model reloaded from configs.json"
+}
+
+# Create backup
+create_backup() {
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        local backup_file="$CONFIG_DIR/settings_backup_$(date +%Y%m%d_%H%M%S).json"
+        cp "$SETTINGS_FILE" "$backup_file"
+        print_status $GREEN "✓ Backup created: $backup_file"
+    else
+        print_status $YELLOW "No settings file to backup"
+    fi
+}
+
+# Check if a model exists
+model_exists() {
+    local model=$1
+    for available_model in $(get_available_models); do
+        if [[ "$model" == "$available_model" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Main execution
+main() {
+    # Initialize configuration
+    init_config
+
+    case "${1:-help}" in
+        "switch")
+            switch_model "$2"
+            ;;
+        "status")
+            show_status
+            ;;
+        "list")
+            list_models
+            ;;
+        "reload")
+            reload_current_model
+            ;;
+        "reset")
+            reset_to_original
+            ;;
+
+        "help"|"-h"|"--help")
+            show_help
+            ;;
+        *)
+            # If no command or first argument is a model name, treat as switch
+            if [[ -n "$1" ]] && model_exists "$1"; then
+                switch_model "$1"
+            else
+                print_status $RED "Error: Unknown command '$1'"
+                echo
+                show_help
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+# Check if running on older bash and provide warning
+if [[ "${BASH_VERSION%%.*}" -lt 4 ]]; then
+    print_status $YELLOW "Note: Running on bash $BASH_VERSION. Some advanced features may be limited."
+fi
+
+# Run main function with all arguments
+main "$@"
