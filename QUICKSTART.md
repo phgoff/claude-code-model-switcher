@@ -22,9 +22,12 @@ CCM lets you switch between Claude Code models by managing configurations.
 ```bash
 ccm <model>         # Switch to model
 ccm status          # Check current model
-ccm list            # List available models  
+ccm list            # List available models
 ccm reload          # Reload from configs.json
 ccm reset           # Reset to original Claude Code
+ccm config          # Open config file in editor
+ccm update          # Update to latest version
+ccm version         # Show version
 ccm help            # Show help
 ```
 
@@ -36,10 +39,11 @@ Edit `~/.ccm/configs.json` to add/modify models:
 {
   "available_models": {
     "mymodel": {
-      "name": "My-Model",
+      "haiku_model": "my-model-haiku",
+      "sonnet_model": "my-model-sonnet",
+      "opus_model": "my-model-opus",
       "base_url": "https://api.example.com",
-      "auth_token": "your-token",
-      "small_fast_model": "My-Model"
+      "auth_token": "your-token"
     }
   }
 }
@@ -53,6 +57,7 @@ Edit `~/.ccm/configs.json` to add/modify models:
 
 ## Files
 
+- `~/.ccm/repo/` - Git repository (for updates)
 - `~/.ccm/configs.json` - Model configurations
 - `~/.claude/settings.json` - Active settings
 
@@ -60,6 +65,7 @@ Edit `~/.ccm/configs.json` to add/modify models:
 
 - **Command not found**: Ensure `~/.local/bin` is in PATH
 - **Config not updating**: Run `ccm reload` after editing configs.json
+- **Update not working**: Run `./install.sh` to reclone the repository
 
 ## Uninstall
 
@@ -72,7 +78,7 @@ Edit `~/.ccm/configs.json` to add/modify models:
 
 The uninstaller:
 - Removes `~/.local/bin/ccm`
-- Deletes `~/.ccm/` configuration directory  
+- Deletes `~/.ccm/` configuration directory
 - Resets Claude Code by removing `~/.claude/settings.json`
 - Creates backup before removing settings
 - Shows confirmation summary first

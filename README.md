@@ -9,6 +9,8 @@ A shell application for managing Claude Code model configurations. Switch betwee
 - ⚙️ **Configuration Management**: Edit configs.json and reload changes
 - 🔄 **Original Mode**: Reset to original Claude Code configuration
 - 🎨 **Colorful Output**: Easy-to-read terminal output
+- 📦 **Auto Updates**: Get latest version from GitHub with `ccm update`
+- 🔢 **Version Info**: Check your version with `ccm version`
 
 ## Installation
 
@@ -23,6 +25,11 @@ chmod +x ccm
 ```bash
 ./install.sh
 ```
+
+The installer will:
+- Clone the CCM repository to `~/.ccm/repo/`
+- Install the script to `~/.local/bin/ccm`
+- Create default configuration at `~/.ccm/configs.json`
 
 ### Uninstall
 
@@ -48,6 +55,9 @@ ccm status          # Show current configuration
 ccm list            # List available models
 ccm reload          # Reload current model from configs.json
 ccm reset           # Reset to original Claude Code
+ccm config          # Open config file in your default editor
+ccm update          # Update CCM to latest version from GitHub
+ccm version         # Show CCM version
 ccm help            # Show help
 ```
 
@@ -60,10 +70,11 @@ Example:
 {
   "available_models": {
     "mymodel": {
-      "name": "My-Model",
+      "haiku_model": "my-model-haiku",
+      "sonnet_model": "my-model-sonnet",
+      "opus_model": "my-model-opus",
       "base_url": "https://api.example.com",
-      "auth_token": "your-token",
-      "small_fast_model": "My-Model"
+      "auth_token": "your-token"
     }
   }
 }
@@ -75,50 +86,51 @@ Example:
 2. Switch models: `ccm <model-name>`
 3. Check status: `ccm status`
 4. Reload after config changes: `ccm reload`
+5. Update CCM: `ccm update`
 
 ## File Structure
 
 ```
 ~/.ccm/
-├── configs.json           # Model configurations
-└── settings_backup_*.json # Backups
+├── repo/                   # Git repository (for updates)
+├── configs.json            # Model configurations
+└── settings_backup_*.json  # Backups
 
 ~/.claude/
-└── settings.json          # Active Claude Code settings
+└── settings.json           # Active Claude Code settings
 ```
+
+## Updating
+
+CCM automatically clones the repository during installation. To get the latest version:
+
+```bash
+ccm update
+```
+
+This will:
+- Pull latest changes from GitHub
+- Backup your current script
+- Install the updated version
 
 ## Troubleshooting
 
 1. **Command not found**: Ensure `~/.local/bin` is in your PATH
 2. **Permission denied**: Run `chmod +x ccm`
 3. **Configuration not updating**: Edit `~/.ccm/configs.json` then run `ccm reload`
+4. **Update not working**: Run `./install.sh` to reclone the repository
 
 ## Requirements
 
 - Bash shell
+- Git (for installation and updates)
 - Basic Unix tools
 
-## Uninstall
+## Version
 
-Complete removal:
-```bash
-./uninstall.sh
-```
+Current version: **1.2.0**
 
-Selective removal:
-```bash
-./uninstall.sh --config-only    # Remove configs only
-./uninstall.sh --script-only    # Remove script only
-./uninstall.sh --force          # Skip confirmation
-```
-
-The uninstaller:
-- Removes the CCM script from `~/.local/bin/ccm`
-- Deletes configuration directory `~/.ccm/`
-- Resets Claude Code by removing `~/.claude/settings.json`
-- Creates backup of current settings before removal
-- Checks shell configs for PATH cleanup suggestions
-- Shows confirmation summary before proceeding
+Check your version with `ccm version`.
 
 ## Contributing
 
@@ -141,6 +153,6 @@ For issues, questions, or feature requests:
 
 ---
 
-**Version**: 1.0.0  
-**Author**: Claude Code Switcher  
+**Version**: 1.2.0
+**Author**: Claude Code Switcher
 **Last Updated**: 2024

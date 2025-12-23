@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # Claude Code Switcher (CCM) Installation Script
-# Author: Claude Code Switcher
-# Version: 1.0.0
+VERSION="1.2.0"
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,11 +14,12 @@ NC='\033[0m' # No Color
 # Configuration paths
 CONFIG_DIR="$HOME/.ccm"
 CONFIG_FILE="$CONFIG_DIR/configs.json"
+REPO_DIR="$CONFIG_DIR/repo"
+REPO_URL="https://github.com/phgoff/claude-code-model-switcher.git"
 
 # Installation directory
 INSTALL_DIR="$HOME/.local/bin"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CCM_SCRIPT="$SCRIPT_DIR/ccm"
+CCM_SCRIPT="$REPO_DIR/ccm"
 
 # Print colored output
 print_status() {
@@ -28,9 +28,23 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
+# Clone or update the repository
+print_status $BLUE "Setting up CCM repository..."
+
+if [[ -d "$REPO_DIR" ]]; then
+    print_status $YELLOW "Repository already exists at $REPO_DIR"
+    print_status $CYAN "Updating..."
+    cd "$REPO_DIR" && git pull -q
+    print_status $GREEN "✓ Repository updated"
+else
+    print_status $CYAN "Cloning repository from GitHub..."
+    git clone -q "$REPO_URL" "$REPO_DIR"
+    print_status $GREEN "✓ Repository cloned to $REPO_DIR"
+fi
+
 # Check if script exists
 if [[ ! -f "$CCM_SCRIPT" ]]; then
-    print_status $RED "Error: ccm script not found in $SCRIPT_DIR"
+    print_status $RED "Error: ccm script not found in $REPO_DIR"
     exit 1
 fi
 
@@ -97,10 +111,11 @@ if "$INSTALL_DIR/ccm" help &> /dev/null; then
   "current_model": "original",
   "available_models": {
     "example": {
-      "name": "Example-Model",
+      "haiku_model": "example-haiku",
+      "sonnet_model": "example-sonnet",
+      "opus_model": "example-opus",
       "base_url": "https://api.example.com",
-      "auth_token": "your-token-here",
-      "small_fast_model": "Example-Model"
+      "auth_token": "your-token-here"
     }
   }
 }
@@ -115,6 +130,9 @@ EOF
     echo "  ccm list          # List available models"
     echo "  ccm reload        # Reload current model from configs.json"
     echo "  ccm reset         # Reset to original Claude Code"
+    echo "  ccm config        # Open config file in editor"
+    echo "  ccm update        # Update to latest version"
+    echo "  ccm version       # Show version"
     echo "  ccm help          # Show help"
 else
     print_status $RED "✗ Installation test failed"
