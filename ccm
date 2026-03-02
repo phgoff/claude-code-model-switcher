@@ -408,7 +408,41 @@ apply_model_config() {
     # Ensure .claude directory exists
     mkdir -p "$CLAUDE_SETTINGS_DIR"
 
-    # Create settings.json with model configuration
+    # Standard environment variables managed by CCM
+    local standard_vars=(
+        "ANTHROPIC_BASE_URL"
+        "ANTHROPIC_AUTH_TOKEN"
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+        "ANTHROPIC_DEFAULT_SONNET_MODEL"
+        "ANTHROPIC_DEFAULT_OPUS_MODEL"
+        "API_TIMEOUT_MS"
+    )
+
+    # Collect custom environment variables from existing settings.json
+    local custom_env=""
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        # Read the existing settings.json and extract custom env vars
+        while IFS= read -r line; do
+            # Check if this line contains an environment variable assignment
+            if [[ "$line" =~ ^[[:space:]]*\"([A-Za-z_][A-Za-z0-9_]*)\": ]]; then
+                local var_name="${BASH_REMATCH[1]}"
+                # Check if this is NOT a standard CCM variable
+                local is_standard=false
+                for std_var in "${standard_vars[@]}"; do
+                    if [[ "$var_name" == "$std_var" ]]; then
+                        is_standard=true
+                        break
+                    fi
+                done
+                if [[ "$is_standard" == false ]]; then
+                    # This is a custom variable, preserve it
+                    custom_env="$custom_env        $line"$'\n'
+                fi
+            fi
+        done < "$SETTINGS_FILE"
+    fi
+
+    # Create settings.json with model configuration, preserving custom env vars
     cat > "$SETTINGS_FILE" << EOF
 {
     "env": {
@@ -417,7 +451,10 @@ apply_model_config() {
         "ANTHROPIC_DEFAULT_HAIKU_MODEL": "$haiku_model",
         "ANTHROPIC_DEFAULT_SONNET_MODEL": "$sonnet_model",
         "ANTHROPIC_DEFAULT_OPUS_MODEL": "$opus_model",
-        "API_TIMEOUT_MS": "3000000"
+        "API_TIMEOUT_MS": "3000000"$(if [[ -n "$custom_env" ]]; then
+            echo ",
+$custom_env"
+        fi)
     }
 }
 EOF
