@@ -102,6 +102,8 @@ Example:
 
 ## Updating
 
+### From GitHub
+
 CCM automatically clones the repository during installation. To get the latest version:
 
 ```bash
@@ -112,6 +114,16 @@ This will:
 - Pull latest changes from GitHub
 - Backup your current script
 - Install the updated version
+
+### Local Development
+
+If you're editing the `ccm` script locally, copy it directly to the installed location:
+
+```bash
+cp ccm ~/.local/bin/ccm
+```
+
+Do **not** run `./install.sh` or `ccm update` after making local changes — they pull from GitHub and will overwrite your edits.
 
 ## Troubleshooting
 
@@ -128,7 +140,7 @@ This will:
 
 ## Version
 
-Current version: **1.2.0**
+Current version: **1.3.0**
 
 Check your version with `ccm version`.
 
@@ -153,6 +165,6 @@ For issues, questions, or feature requests:
 
 ---
 
-**Version**: 1.2.0
+**Version**: 1.3.0
 **Author**: Claude Code Switcher
 **Last Updated**: 2024

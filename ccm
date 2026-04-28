@@ -418,46 +418,43 @@ apply_model_config() {
         "API_TIMEOUT_MS"
     )
 
-    # Collect custom environment variables from existing settings.json
-    local custom_env=""
-    if [[ -f "$SETTINGS_FILE" ]]; then
-        # Read the existing settings.json and extract custom env vars
-        while IFS= read -r line; do
-            # Check if this line contains an environment variable assignment
-            if [[ "$line" =~ ^[[:space:]]*\"([A-Za-z_][A-Za-z0-9_]*)\": ]]; then
-                local var_name="${BASH_REMATCH[1]}"
-                # Check if this is NOT a standard CCM variable
-                local is_standard=false
-                for std_var in "${standard_vars[@]}"; do
-                    if [[ "$var_name" == "$std_var" ]]; then
-                        is_standard=true
-                        break
-                    fi
-                done
-                if [[ "$is_standard" == false ]]; then
-                    # This is a custom variable, preserve it
-                    custom_env="$custom_env        $line"$'\n'
-                fi
-            fi
-        done < "$SETTINGS_FILE"
-    fi
+    # Build the new env block, preserving any custom (non-standard) env vars
+    local new_env="{"
+    new_env+="\"ANTHROPIC_BASE_URL\":\"$api_url\","
+    new_env+="\"ANTHROPIC_AUTH_TOKEN\":\"$auth_token\","
+    new_env+="\"ANTHROPIC_DEFAULT_HAIKU_MODEL\":\"$haiku_model\","
+    new_env+="\"ANTHROPIC_DEFAULT_SONNET_MODEL\":\"$sonnet_model\","
+    new_env+="\"ANTHROPIC_DEFAULT_OPUS_MODEL\":\"$opus_model\","
+    new_env+="\"API_TIMEOUT_MS\":\"3000000\""
 
-    # Create settings.json with model configuration, preserving custom env vars
-    cat > "$SETTINGS_FILE" << EOF
-{
-    "env": {
-        "ANTHROPIC_BASE_URL": "$api_url",
-        "ANTHROPIC_AUTH_TOKEN": "$auth_token",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "$haiku_model",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "$sonnet_model",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "$opus_model",
-        "API_TIMEOUT_MS": "3000000"$(if [[ -n "$custom_env" ]]; then
-            echo ",
-$custom_env"
-        fi)
-    }
-}
-EOF
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        # Extract only the env section, then preserve custom vars
+        local existing_env
+        existing_env=$(jq -r '.env // {}' "$SETTINGS_FILE")
+        for var_name in $(echo "$existing_env" | jq -r 'keys[]'); do
+            local is_standard=false
+            for std_var in "${standard_vars[@]}"; do
+                if [[ "$var_name" == "$std_var" ]]; then
+                    is_standard=true
+                    break
+                fi
+            done
+            if [[ "$is_standard" == false ]]; then
+                local var_value
+                var_value=$(echo "$existing_env" | jq -r --arg k "$var_name" '.[$k] | tostring')
+                new_env+=",\"$var_name\":\"$var_value\""
+            fi
+        done
+    fi
+    new_env+="}"
+
+    # Use jq to merge new env into existing settings (preserves statusLine and any other sections)
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        jq --indent 4 --argjson env "$new_env" '.env = $env' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && \
+            mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+    else
+        echo "{\"env\":$new_env}" | jq --indent 4 '.' > "$SETTINGS_FILE"
+    fi
 
     print_status $GREEN "✓ Successfully switched to $model model"
     print_status $CYAN "Configuration written to: $SETTINGS_FILE"
